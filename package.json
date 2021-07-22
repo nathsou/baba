@@ -1,0 +1,14 @@
+{
+  "name": "baba",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npx esbuild src/Main.ts --outfile=dist/baba.js --bundle",
+    "watch": "npx esbuild src/Main.ts --outfile=dist/baba.js --bundle --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
