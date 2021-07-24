@@ -13,6 +13,7 @@
     flag: "noun",
     baba: "noun",
     wall: "noun",
+    water: "noun",
     text: "noun",
     rock: "noun",
     is: "connector",
@@ -71,18 +72,18 @@
       return false;
     if (tile.map.has("stop", x, y))
       return false;
-    for (const square of tile.map.at(x, y)) {
-      if ((square.is("push") || square.is("you")) && !canMove(square, deltaX, deltaY)) {
+    for (const other of tile.map.at(x, y)) {
+      if ((other.is("push") || other.is("you")) && !canMove(other, deltaX, deltaY)) {
         return false;
       }
     }
     return true;
   };
-  var move = (tile, deltaX, deltaY) => {
+  var tryMoving = (tile, deltaX, deltaY) => {
     if (canMove(tile, deltaX, deltaY)) {
       const moveAction = { type: "move", deltaX, deltaY };
       for (const sq of tile.map.at(tile.x + deltaX, tile.y + deltaY)) {
-        if (sq !== void 0) {
+        if (sq !== tile) {
           sq.reactTo(moveAction);
         }
       }
@@ -106,7 +107,7 @@
       tile.reactTo({ type: "move", deltaX: action.deltaX, deltaY: action.deltaY });
     }
     if (action.type === "move") {
-      move(tile, action.deltaX, action.deltaY);
+      tryMoving(tile, action.deltaX, action.deltaY);
     }
   };
   var win = (action, tile) => {
@@ -116,7 +117,7 @@
   };
   var push = (action, tile) => {
     if (action.type === "move") {
-      move(tile, action.deltaX, action.deltaY);
+      tryMoving(tile, action.deltaX, action.deltaY);
     }
   };
   var behaviors = {
@@ -128,12 +129,13 @@
   };
 
   // src/Tile.ts
-  var squareProps = {
-    baba: { color: "#88c0d1ba" },
-    wall: { color: "#a37949ba" },
-    flag: { color: "#fffeab" },
-    text: { color: "#ffffff" },
-    rock: { color: "blue" }
+  var tileProps = {
+    baba: { color: "#E40066", zIndex: 10 },
+    wall: { color: "#FB4D3D", zIndex: 0 },
+    water: { color: "#345995", zIndex: 0 },
+    flag: { color: "#EAC435", zIndex: 10 },
+    text: { color: "#ffffff", zIndex: 10 },
+    rock: { color: "blue", zIndex: 10 }
   };
   var _Tile = class {
     constructor(kind, map2, dispatch2) {
@@ -154,17 +156,15 @@
     }
     setKind(kind) {
       this.noun = kind;
-      this.color = squareProps[kind].color;
+      this.color = tileProps[kind].color;
     }
     update() {
     }
-    render(x, y, ctx) {
+    render(ctx) {
+      const { x, y } = this.position;
       ctx.fillStyle = this.color;
       ctx.fillRect(x * _Tile.SIZE, y * _Tile.SIZE, _Tile.SIZE, _Tile.SIZE);
       ctx.fill();
-      ctx.strokeStyle = "grey";
-      ctx.strokeRect(x * _Tile.SIZE, y * _Tile.SIZE, _Tile.SIZE, _Tile.SIZE);
-      ctx.stroke();
     }
     reactTo(action) {
       if (behaviors.always(action, this) === "break") {
@@ -189,7 +189,7 @@
     }
   };
   var Tile = _Tile;
-  Tile.SIZE = 64;
+  Tile.SIZE = 48;
 
   // src/TileMap.ts
   var swapRemove = (values, index) => {
@@ -300,7 +300,8 @@
     push: { color: "#74cfc7" },
     win: { color: "yellow" },
     text: { color: "grey" },
-    rock: { color: "white" }
+    rock: { color: "white" },
+    water: { color: "#345995" }
   };
   var _Text = class extends Tile {
     constructor(text, map2, dispatch2) {
@@ -343,8 +344,9 @@
         this.indexRuleFrom(pos.x, pos.y, "down", map2);
       }
     }
-    render(x, y, ctx) {
-      super.render(x, y, ctx);
+    render(ctx) {
+      super.render(ctx);
+      const { x, y } = this.position;
       const upper = this.text.toUpperCase();
       ctx.fillStyle = "black";
       ctx.font = `${_Text.FONT_SIZE}px Arial`;
@@ -425,12 +427,8 @@
       this.ctx.fillStyle = "black";
       this.ctx.fillRect(0, 0, this.cnv.width, this.cnv.height);
       this.ctx.fill();
-      for (const square of this.map) {
-        const pos = this.map.position(square);
-        if (pos) {
-          square.render(pos.x, pos.y, this.ctx);
-        }
-      }
+      const tiles2 = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
+      tiles2.forEach((tile) => tile.render(this.ctx));
       if (_Level.DEBUG) {
         this.map.debug(this.ctx);
       }
@@ -444,7 +442,6 @@
       Rules.orderByPriority();
       this.broadcast({ type: "updated_rules" });
       this.needsRulesUpdate = false;
-      console.log(Rules.all());
     }
     update() {
       if (!this.won && this.needsUpdate) {
@@ -490,6 +487,7 @@
     ["text", "flag", 12, 2],
     ["text", "is", 12, 3],
     ["text", "win", 12, 4],
+    ["text", "push", 14, 4],
     ["square", "baba", 6, 7],
     ["square", "flag", 12, 7],
     ["square", "wall", 10, 0],
