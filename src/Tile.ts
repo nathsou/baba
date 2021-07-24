@@ -52,10 +52,6 @@ export class Tile {
     this.color = tileProps[kind].color;
   }
 
-  public update(): void {
-
-  }
-
   public render(ctx: CanvasRenderingContext2D): void {
     const { x, y } = this.position;
     ctx.fillStyle = this.color;

@@ -18,8 +18,12 @@ export class Level {
   constructor(dimX: number, dimY: number) {
     this.cnv = document.createElement('canvas');
     this.cnv.tabIndex = 100;
-    this.cnv.width = dimX * Tile.SIZE;
-    this.cnv.height = dimY * Tile.SIZE;
+
+    const dpr = window.devicePixelRatio;
+    this.cnv.style.width = dimX * Tile.SIZE + 'px';
+    this.cnv.style.height = dimY * Tile.SIZE + 'px';
+    this.cnv.width = Math.floor(dimX * Tile.SIZE * dpr);
+    this.cnv.height = Math.floor(dimY * Tile.SIZE * dpr);
     this.map = new TileMap(dimX, dimY);
 
     const ctx = this.cnv.getContext('2d');
@@ -27,7 +31,8 @@ export class Level {
     if (ctx === null) {
       throw new Error(`Could not create a canvas`);
     }
-
+    
+    ctx.scale(dpr, dpr);
     this.ctx = ctx;
     this.initListeners();
   }
@@ -36,6 +41,7 @@ export class Level {
     switch (action.type) {
       case 'win':
         this.won = true;
+        this.needsRulesUpdate = true;
         break;
       case 'update_rules':
         this.needsRulesUpdate = true;
@@ -119,10 +125,6 @@ export class Level {
 
       if (Rules.won()) {
         this.won = true;
-      }
-
-      for (const square of this.map) {
-        square.update();
       }
 
       this.render();

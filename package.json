@@ -5,8 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx esbuild src/Main.ts --outfile=dist/baba.js --bundle",
-    "watch": "npx esbuild src/Main.ts --outfile=dist/baba.js --bundle --watch"
+    "build": "cp src/index.html dist && esbuild src/Main.ts --outfile=dist/baba.js --bundle",
+    "watch": "esbuild src/Main.ts --outfile=dist/baba.js --bundle --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.12.15"
   },
   "keywords": [],
   "author": "",
