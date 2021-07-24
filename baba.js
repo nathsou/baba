@@ -131,19 +131,19 @@
   // src/Tile.ts
   var tileProps = {
     baba: { color: "#E40066", zIndex: 10 },
-    wall: { color: "#FB4D3D", zIndex: 0 },
+    wall: { color: "#272640", zIndex: 0 },
     water: { color: "#345995", zIndex: 0 },
     flag: { color: "#EAC435", zIndex: 10 },
-    text: { color: "#ffffff", zIndex: 10 },
-    rock: { color: "blue", zIndex: 10 }
+    text: { color: "#faf3dd", zIndex: 10 },
+    rock: { color: "#994636", zIndex: 10 }
   };
   var _Tile = class {
-    constructor(kind, map2, dispatch2) {
+    constructor(kind, map, dispatch) {
       this.noun = "baba";
-      this.color = "red";
+      this.color = tileProps[this.noun].color;
       this.setKind(kind);
-      this.map = map2;
-      this.dispatch = dispatch2;
+      this.map = map;
+      this.dispatch = dispatch;
     }
     get position() {
       return this.map.position(this);
@@ -157,8 +157,6 @@
     setKind(kind) {
       this.noun = kind;
       this.color = tileProps[kind].color;
-    }
-    update() {
     }
     render(ctx) {
       const { x, y } = this.position;
@@ -304,8 +302,8 @@
     water: { color: "#345995" }
   };
   var _Text = class extends Tile {
-    constructor(text, map2, dispatch2) {
-      super("text", map2, dispatch2);
+    constructor(text, map, dispatch) {
+      super("text", map, dispatch);
       this.text = text;
       this.textColor = textProps[text].color;
       this.wordKind = wordKinds[text];
@@ -322,13 +320,13 @@
     isProperty() {
       return this.wordKind === "property";
     }
-    indexRuleFrom(x, y, dir, map2) {
+    indexRuleFrom(x, y, dir, map) {
       const deltaX = dir === "left" ? 1 : 0;
       const deltaY = dir === "down" ? 1 : 0;
-      const squares = map2.at(x + deltaX, y + deltaY);
+      const squares = map.at(x + deltaX, y + deltaY);
       for (const sq of squares) {
         if (sq instanceof _Text && sq.text === "is") {
-          const left2 = map2.at(x + 2 * deltaX, y + 2 * deltaY);
+          const left2 = map.at(x + 2 * deltaX, y + 2 * deltaY);
           for (const sq2 of left2) {
             if (sq2 instanceof _Text) {
               Rules.add(this.text, sq2.text);
@@ -337,11 +335,11 @@
         }
       }
     }
-    indexRules(map2) {
-      const pos = map2.position(this);
+    indexRules(map) {
+      const pos = map.position(this);
       if (pos) {
-        this.indexRuleFrom(pos.x, pos.y, "left", map2);
-        this.indexRuleFrom(pos.x, pos.y, "down", map2);
+        this.indexRuleFrom(pos.x, pos.y, "left", map);
+        this.indexRuleFrom(pos.x, pos.y, "down", map);
       }
     }
     render(ctx) {
@@ -365,55 +363,51 @@
       this.needsRulesUpdate = true;
       this.text = [];
       this.won = false;
-      this.cnv = document.createElement("canvas");
-      this.cnv.tabIndex = 100;
-      this.cnv.width = dimX * Tile.SIZE;
-      this.cnv.height = dimY * Tile.SIZE;
-      this.map = new TileMap(dimX, dimY);
+      this.onWinHandlers = [];
+      this.dims = [dimX, dimY];
+      const cnv = document.createElement("canvas");
+      cnv.tabIndex = 100;
+      const dpr = window.devicePixelRatio;
+      cnv.style.width = dimX * Tile.SIZE + "px";
+      cnv.style.height = dimY * Tile.SIZE + "px";
+      cnv.width = Math.floor(dimX * Tile.SIZE * dpr);
+      cnv.height = Math.floor(dimY * Tile.SIZE * dpr);
+      this.cnv = cnv;
       const ctx = this.cnv.getContext("2d");
       if (ctx === null) {
         throw new Error(`Could not create a canvas`);
       }
       this.ctx = ctx;
-      this.initListeners();
+      this.ctx.scale(dpr, dpr);
+      this.map = new TileMap(dimX, dimY);
+    }
+    static from({ dims, text, objects }) {
+      const lvl = new _Level(dims[0], dims[1]);
+      const dispatch = lvl.reactTo.bind(lvl);
+      for (const { x, y, word } of text) {
+        lvl.add(x, y, new Text(word, lvl.map, dispatch));
+      }
+      for (const { x, y, kind } of objects) {
+        lvl.add(x, y, new Tile(kind, lvl.map, dispatch));
+      }
+      lvl.reactTo({ type: "update_rules" });
+      return lvl;
     }
     reactTo(action) {
       switch (action.type) {
         case "win":
           this.won = true;
+          this.needsRulesUpdate = true;
           break;
         case "update_rules":
           this.needsRulesUpdate = true;
           break;
       }
     }
-    initListeners() {
-      this.cnv.addEventListener("keydown", (event) => {
-        event.preventDefault();
-        switch (event.code) {
-          case "KeyA":
-          case "ArrowLeft":
-            this.broadcast({ type: "controls", deltaX: -1, deltaY: 0 });
-            break;
-          case "KeyD":
-          case "ArrowRight":
-            this.broadcast({ type: "controls", deltaX: 1, deltaY: 0 });
-            break;
-          case "KeyW":
-          case "ArrowUp":
-            this.broadcast({ type: "controls", deltaX: 0, deltaY: -1 });
-            break;
-          case "KeyS":
-          case "ArrowDown":
-            this.broadcast({ type: "controls", deltaX: 0, deltaY: 1 });
-            break;
-        }
-      });
-    }
     broadcast(action) {
       this.needsUpdate = true;
-      for (const square of this.map) {
-        square.reactTo(action);
+      for (const tile of this.map) {
+        tile.reactTo(action);
       }
     }
     add(x, y, square) {
@@ -425,10 +419,10 @@
     }
     render() {
       this.ctx.fillStyle = "black";
-      this.ctx.fillRect(0, 0, this.cnv.width, this.cnv.height);
+      this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
       this.ctx.fill();
-      const tiles2 = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
-      tiles2.forEach((tile) => tile.render(this.ctx));
+      const tiles = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
+      tiles.forEach((tile) => tile.render(this.ctx));
       if (_Level.DEBUG) {
         this.map.debug(this.ctx);
       }
@@ -444,19 +438,198 @@
       this.needsRulesUpdate = false;
     }
     update() {
-      if (!this.won && this.needsUpdate) {
+      if (this.needsUpdate) {
+        this.notifyWinListeners();
         if (this.needsRulesUpdate) {
           this.updateRules();
         }
         if (Rules.won()) {
           this.won = true;
         }
-        for (const square of this.map) {
-          square.update();
-        }
         this.render();
         this.needsUpdate = false;
       }
+    }
+    notifyWinListeners() {
+      if (this.won) {
+        this.onWinHandlers.forEach((listener) => {
+          listener();
+        });
+      }
+    }
+    onWin(handler) {
+      this.onWinHandlers.push(handler);
+    }
+    get canvas() {
+      return this.cnv;
+    }
+    get dimensions() {
+      return this.dims;
+    }
+    get tileMap() {
+      return this.map;
+    }
+  };
+  var Level = _Level;
+  Level.DEBUG = false;
+
+  // src/Game.ts
+  var lvl0 = {
+    name: "Level 0",
+    dims: [15, 13],
+    text: [
+      { x: 2, y: 2, word: "baba" },
+      { x: 3, y: 2, word: "is" },
+      { x: 4, y: 2, word: "you" },
+      { x: 10, y: 2, word: "flag" },
+      { x: 11, y: 2, word: "is" },
+      { x: 12, y: 2, word: "win" },
+      { x: 2, y: 10, word: "wall" },
+      { x: 3, y: 10, word: "is" },
+      { x: 4, y: 10, word: "stop" },
+      { x: 10, y: 10, word: "rock" },
+      { x: 11, y: 10, word: "is" },
+      { x: 12, y: 10, word: "push" }
+    ],
+    objects: [
+      { kind: "baba", x: 3, y: 6 },
+      { kind: "flag", x: 12, y: 6 },
+      { kind: "wall", x: 2, y: 4 },
+      { kind: "wall", x: 3, y: 4 },
+      { kind: "wall", x: 4, y: 4 },
+      { kind: "wall", x: 5, y: 4 },
+      { kind: "wall", x: 6, y: 4 },
+      { kind: "wall", x: 7, y: 4 },
+      { kind: "wall", x: 8, y: 4 },
+      { kind: "wall", x: 9, y: 4 },
+      { kind: "wall", x: 10, y: 4 },
+      { kind: "wall", x: 11, y: 4 },
+      { kind: "wall", x: 12, y: 4 },
+      { kind: "wall", x: 2, y: 8 },
+      { kind: "wall", x: 3, y: 8 },
+      { kind: "wall", x: 4, y: 8 },
+      { kind: "wall", x: 5, y: 8 },
+      { kind: "wall", x: 6, y: 8 },
+      { kind: "wall", x: 7, y: 8 },
+      { kind: "wall", x: 8, y: 8 },
+      { kind: "wall", x: 9, y: 8 },
+      { kind: "wall", x: 10, y: 8 },
+      { kind: "wall", x: 11, y: 8 },
+      { kind: "wall", x: 12, y: 8 },
+      { kind: "rock", x: 7, y: 5 },
+      { kind: "rock", x: 7, y: 6 },
+      { kind: "rock", x: 7, y: 7 }
+    ]
+  };
+  var lvl1 = {
+    name: "Level 1",
+    dims: [16, 12],
+    text: [
+      { x: 4, y: 2, word: "baba" },
+      { x: 5, y: 2, word: "is" },
+      { x: 6, y: 2, word: "you" },
+      { x: 3, y: 5, word: "wall" },
+      { x: 3, y: 6, word: "is" },
+      { x: 3, y: 7, word: "stop" },
+      { x: 12, y: 2, word: "flag" },
+      { x: 12, y: 3, word: "is" },
+      { x: 12, y: 4, word: "win" },
+      { x: 14, y: 4, word: "push" }
+    ],
+    objects: [
+      { kind: "baba", x: 6, y: 7 },
+      { kind: "flag", x: 12, y: 7 },
+      { kind: "wall", x: 10, y: 0 },
+      { kind: "wall", x: 10, y: 1 },
+      { kind: "wall", x: 10, y: 2 },
+      { kind: "wall", x: 10, y: 3 },
+      { kind: "wall", x: 10, y: 4 },
+      { kind: "wall", x: 10, y: 5 },
+      { kind: "wall", x: 10, y: 6 },
+      { kind: "wall", x: 10, y: 7 },
+      { kind: "wall", x: 10, y: 8 },
+      { kind: "wall", x: 10, y: 9 },
+      { kind: "wall", x: 10, y: 10 },
+      { kind: "wall", x: 10, y: 11 }
+    ]
+  };
+  var levels = [
+    lvl0,
+    lvl1
+  ];
+  var Game = class {
+    constructor(width, height) {
+      this.currentLevelIndex = 0;
+      this.currentLevel = null;
+      this.zoomedIn = false;
+      this.width = width;
+      this.height = height;
+      const cnv = document.createElement("canvas");
+      cnv.tabIndex = 100;
+      const dpr = window.devicePixelRatio;
+      cnv.style.width = width * Tile.SIZE + "px";
+      cnv.style.height = height * Tile.SIZE + "px";
+      cnv.width = Math.floor(width * Tile.SIZE * dpr);
+      cnv.height = Math.floor(height * Tile.SIZE * dpr);
+      const ctx = cnv.getContext("2d");
+      if (ctx === null) {
+        throw new Error(`Could not create a canvas`);
+      }
+      this.cnv = cnv;
+      this.ctx = ctx;
+      this.ctx.scale(dpr, dpr);
+      this.initListeners();
+      this.setLevel(levels[0]);
+    }
+    setLevel(lvl) {
+      const level = Level.from(lvl);
+      this.currentLevel = level;
+      level.onWin(() => {
+        const nextLevelIndex = (this.currentLevelIndex + 1) % levels.length;
+        this.setLevel(levels[nextLevelIndex]);
+        this.currentLevelIndex = nextLevelIndex;
+      });
+    }
+    initListeners() {
+      this.cnv.addEventListener("keydown", (event) => {
+        var _a, _b, _c, _d;
+        event.preventDefault();
+        switch (event.code) {
+          case "KeyA":
+          case "ArrowLeft":
+            (_a = this.currentLevel) == null ? void 0 : _a.broadcast({ type: "controls", deltaX: -1, deltaY: 0 });
+            break;
+          case "KeyD":
+          case "ArrowRight":
+            (_b = this.currentLevel) == null ? void 0 : _b.broadcast({ type: "controls", deltaX: 1, deltaY: 0 });
+            break;
+          case "KeyW":
+          case "ArrowUp":
+            (_c = this.currentLevel) == null ? void 0 : _c.broadcast({ type: "controls", deltaX: 0, deltaY: -1 });
+            break;
+          case "KeyS":
+          case "ArrowDown":
+            (_d = this.currentLevel) == null ? void 0 : _d.broadcast({ type: "controls", deltaX: 0, deltaY: 1 });
+            break;
+        }
+      });
+    }
+    render() {
+      this.ctx.fillStyle = "#212529";
+      this.ctx.fillRect(0, 0, this.width * Tile.SIZE, this.height * Tile.SIZE);
+      this.ctx.fill();
+      if (this.currentLevel) {
+        const [lvlX, lvlY] = this.currentLevel.dimensions;
+        const zoom = this.zoomedIn ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
+        const offsetX = (this.width - lvlX * zoom) * Tile.SIZE / 2;
+        const offsetY = (this.height - lvlY * zoom) * Tile.SIZE / 2;
+        this.ctx.drawImage(this.currentLevel.canvas, offsetX, offsetY, lvlX * Tile.SIZE * zoom, lvlY * Tile.SIZE * zoom);
+      }
+    }
+    update() {
+      var _a;
+      this.render();
+      (_a = this.currentLevel) == null ? void 0 : _a.update();
     }
     start() {
       const callback = () => {
@@ -468,54 +641,11 @@
     get canvas() {
       return this.cnv;
     }
-    get tileMap() {
-      return this.map;
-    }
-  };
-  var Level = _Level;
-  Level.DEBUG = false;
-
-  // src/game.ts
-  var level = new Level(16, 12);
-  var tiles = [
-    ["text", "baba", 4, 2],
-    ["text", "is", 5, 2],
-    ["text", "you", 6, 2],
-    ["text", "wall", 3, 5],
-    ["text", "is", 3, 6],
-    ["text", "stop", 3, 7],
-    ["text", "flag", 12, 2],
-    ["text", "is", 12, 3],
-    ["text", "win", 12, 4],
-    ["text", "push", 14, 4],
-    ["square", "baba", 6, 7],
-    ["square", "flag", 12, 7],
-    ["square", "wall", 10, 0],
-    ["square", "wall", 10, 1],
-    ["square", "wall", 10, 2],
-    ["square", "wall", 10, 3],
-    ["square", "wall", 10, 4],
-    ["square", "wall", 10, 5],
-    ["square", "wall", 10, 6],
-    ["square", "wall", 10, 7],
-    ["square", "wall", 10, 8],
-    ["square", "wall", 10, 9],
-    ["square", "wall", 10, 10],
-    ["square", "wall", 10, 11]
-  ];
-  var dispatch = level.reactTo.bind(level);
-  var map = level.tileMap;
-  for (const [sq, kind, x, y] of tiles) {
-    level.add(x, y, sq === "square" ? new Tile(kind, map, dispatch) : new Text(kind, map, dispatch));
-  }
-  var game = {
-    level
   };
 
   // src/Main.ts
-  var { level: level2 } = game;
-  window["level"] = level2;
-  document.body.appendChild(level2.canvas);
-  level2.reactTo({ type: "update_rules" });
-  level2.start();
+  var game = new Game(18, 16);
+  window["game"] = game;
+  document.body.appendChild(game.canvas);
+  game.start();
 })();
