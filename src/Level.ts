@@ -1,5 +1,5 @@
 import { Rules } from "./Rules";
-import { Action, Tile } from "./Tile";
+import { Action, Tile, tileProps } from "./Tile";
 import { TileMap } from "./TileMap";
 import { Text } from "./Text";
 
@@ -88,12 +88,10 @@ export class Level {
     this.ctx.fillRect(0, 0, this.cnv.width, this.cnv.height);
     this.ctx.fill();
 
-    for (const square of this.map) {
-      const pos = this.map.position(square);
-      if (pos) {
-        square.render(pos.x, pos.y, this.ctx);
-      }
-    }
+    // order tiles by zIndex
+    const tiles = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
+
+    tiles.forEach(tile => tile.render(this.ctx));
 
     if (Level.DEBUG) {
       this.map.debug(this.ctx);
@@ -111,8 +109,6 @@ export class Level {
     Rules.orderByPriority();
     this.broadcast({ type: 'updated_rules' });
     this.needsRulesUpdate = false;
-
-    console.log(Rules.all());
   }
 
   public update(): void {

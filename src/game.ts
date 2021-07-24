@@ -15,6 +15,7 @@ const tiles: Array<['square' | 'text', Word, number, number]> = [
   ['text', 'flag', 12, 2],
   ['text', 'is', 12, 3],
   ['text', 'win', 12, 4],
+  ['text', 'push', 14, 4],
   ['square', 'baba', 6, 7],
   ['square', 'flag', 12, 7],
   ['square', 'wall', 10, 0],

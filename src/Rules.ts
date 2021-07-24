@@ -1,5 +1,5 @@
 
-export type Noun = 'wall' | 'baba' | 'text' | 'flag' | 'rock';
+export type Noun = 'wall' | 'baba' | 'text' | 'flag' | 'rock' | 'water';
 export type Connector = 'is';
 export type Property = 'you' | 'stop' | 'push' | 'win';
 
@@ -22,6 +22,7 @@ export const wordKinds: { [W in Word]: WordKind } = {
   flag: 'noun',
   baba: 'noun',
   wall: 'noun',
+  water: 'noun',
   text: 'noun',
   rock: 'noun',
   is: 'connector',

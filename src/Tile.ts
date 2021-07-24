@@ -3,12 +3,13 @@ import { LevelAction } from "./Level";
 import { isProperty, Noun, Rules, Word } from "./Rules";
 import { TileMap } from "./TileMap";
 
-const squareProps: { [N in Noun]: { color: string } } = {
-  baba: { color: '#88c0d1ba' },
-  wall: { color: '#a37949ba' },
-  flag: { color: '#fffeab' },
-  text: { color: '#ffffff' },
-  rock: { color: 'blue' },
+export const tileProps: { [N in Noun]: { color: string, zIndex: number } } = {
+  baba: { color: '#E40066', zIndex: 10 },
+  wall: { color: '#FB4D3D', zIndex: 0 },
+  water: { color: '#345995', zIndex: 0 },
+  flag: { color: '#EAC435', zIndex: 10 },
+  text: { color: '#ffffff', zIndex: 10 },
+  rock: { color: 'blue', zIndex: 10 },
 };
 
 type ControlsAction = { type: 'controls', deltaX: number, deltaY: number };
@@ -21,7 +22,7 @@ export type Action = ControlsAction | MoveAction | WinAction | UpdatedRulesActio
 export type Dispatcher = (action: LevelAction) => void;
 
 export class Tile {
-  public static SIZE = 64;
+  public static SIZE = 48;
 
   private noun: Noun = 'baba';
   protected color: string = 'red';
@@ -48,21 +49,22 @@ export class Tile {
 
   public setKind(kind: Noun): void {
     this.noun = kind;
-    this.color = squareProps[kind].color;
+    this.color = tileProps[kind].color;
   }
 
   public update(): void {
 
   }
 
-  public render(x: number, y: number, ctx: CanvasRenderingContext2D): void {
+  public render(ctx: CanvasRenderingContext2D): void {
+    const { x, y } = this.position;
     ctx.fillStyle = this.color;
     ctx.fillRect(x * Tile.SIZE, y * Tile.SIZE, Tile.SIZE, Tile.SIZE);
     ctx.fill();
 
-    ctx.strokeStyle = 'grey';
-    ctx.strokeRect(x * Tile.SIZE, y * Tile.SIZE, Tile.SIZE, Tile.SIZE);
-    ctx.stroke();
+    // ctx.strokeStyle = 'grey';
+    // ctx.strokeRect(x * Tile.SIZE, y * Tile.SIZE, Tile.SIZE, Tile.SIZE);
+    // ctx.stroke();
   }
 
   public reactTo(action: Action): void {

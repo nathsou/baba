@@ -9,9 +9,9 @@ const canMove = (tile: Tile, deltaX: number, deltaY: number): boolean => {
   if (!tile.map.isValidPosition(x, y)) return false;
   if (tile.map.has('stop', x, y)) return false;
 
-  for (const square of tile.map.at(x, y)) {
-    if ((square.is('push') || square.is('you')) &&
-      !canMove(square, deltaX, deltaY)
+  for (const other of tile.map.at(x, y)) {
+    if ((other.is('push') || other.is('you')) &&
+      !canMove(other, deltaX, deltaY)
     ) {
       return false;
     }
@@ -20,11 +20,11 @@ const canMove = (tile: Tile, deltaX: number, deltaY: number): boolean => {
   return true;
 };
 
-const move = (tile: Tile, deltaX: number, deltaY: number): void => {
+const tryMoving = (tile: Tile, deltaX: number, deltaY: number): void => {
   if (canMove(tile, deltaX, deltaY)) {
     const moveAction = { type: 'move', deltaX, deltaY } as const;
     for (const sq of tile.map.at(tile.x + deltaX, tile.y + deltaY)) {
-      if (sq !== this) {
+      if (sq !== tile) {
         sq.reactTo(moveAction);
       }
     }
@@ -56,7 +56,7 @@ const you: Behavior = (action, tile) => {
   }
 
   if (action.type === 'move') {
-    move(tile, action.deltaX, action.deltaY);
+    tryMoving(tile, action.deltaX, action.deltaY);
   }
 };
 
@@ -71,7 +71,7 @@ const win: Behavior = (action, tile) => {
 
 const push: Behavior = (action, tile) => {
   if (action.type === 'move') {
-    move(tile, action.deltaX, action.deltaY);
+    tryMoving(tile, action.deltaX, action.deltaY);
   }
 };
 

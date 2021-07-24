@@ -17,6 +17,7 @@ export const textProps: { [W in Word]: WordProps } = {
   win: { color: 'yellow' },
   text: { color: 'grey' },
   rock: { color: 'white' },
+  water: { color: '#345995' },
 };
 
 export class Text extends Tile {
@@ -74,9 +75,10 @@ export class Text extends Tile {
     }
   }
 
-  public render(x: number, y: number, ctx: CanvasRenderingContext2D): void {
-    super.render(x, y, ctx);
+  public render(ctx: CanvasRenderingContext2D): void {
+    super.render(ctx);
 
+    const { x, y } = this.position;
     const upper = this.text.toUpperCase();
     ctx.fillStyle = 'black'; // this.textColor;
     ctx.font = `${Text.FONT_SIZE}px Arial`;
