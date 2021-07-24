@@ -1,9 +1,28 @@
-import { Rules } from "./Rules";
+import { Noun, Rules, Word } from "./Rules";
 import { Action, Tile, tileProps } from "./Tile";
 import { TileMap } from "./TileMap";
 import { Text } from "./Text";
 
 export type LevelAction = { type: 'win' } | { type: 'update_rules' };
+
+export type ObjectData = {
+  x: number,
+  y: number,
+  kind: Noun,
+};
+
+export type TextData = {
+  x: number,
+  y: number,
+  word: Word,
+};
+
+export type LevelData = {
+  name: string,
+  dims: [number, number],
+  text: TextData[],
+  objects: ObjectData[],
+};
 
 export class Level {
   private static DEBUG = false;
@@ -14,27 +33,49 @@ export class Level {
   private needsRulesUpdate = true;
   private text: Text[] = [];
   private won = false;
+  private dims: [number, number];
+  private onWinHandlers: (() => void)[] = [];
 
-  constructor(dimX: number, dimY: number) {
-    this.cnv = document.createElement('canvas');
-    this.cnv.tabIndex = 100;
+  public static from({ dims, text, objects }: LevelData): Level {
+    const lvl = new Level(dims[0], dims[1]);
+    const dispatch = lvl.reactTo.bind(lvl);
+
+    for (const { x, y, word } of text) {
+      lvl.add(x, y, new Text(word, lvl.map, dispatch));
+    }
+
+    for (const { x, y, kind } of objects) {
+      lvl.add(x, y, new Tile(kind, lvl.map, dispatch));
+    }
+
+    lvl.reactTo({ type: 'update_rules' });
+
+    return lvl;
+  }
+
+  private constructor(dimX: number, dimY: number) {
+    this.dims = [dimX, dimY];
+    const cnv = document.createElement('canvas');
+    cnv.tabIndex = 100;
 
     const dpr = window.devicePixelRatio;
-    this.cnv.style.width = dimX * Tile.SIZE + 'px';
-    this.cnv.style.height = dimY * Tile.SIZE + 'px';
-    this.cnv.width = Math.floor(dimX * Tile.SIZE * dpr);
-    this.cnv.height = Math.floor(dimY * Tile.SIZE * dpr);
-    this.map = new TileMap(dimX, dimY);
+    cnv.style.width = dimX * Tile.SIZE + 'px';
+    cnv.style.height = dimY * Tile.SIZE + 'px';
+    cnv.width = Math.floor(dimX * Tile.SIZE * dpr);
+    cnv.height = Math.floor(dimY * Tile.SIZE * dpr);
+
+    this.cnv = cnv;
 
     const ctx = this.cnv.getContext('2d');
 
     if (ctx === null) {
       throw new Error(`Could not create a canvas`);
     }
-    
-    ctx.scale(dpr, dpr);
+
     this.ctx = ctx;
-    this.initListeners();
+    this.ctx.scale(dpr, dpr);
+
+    this.map = new TileMap(dimX, dimY);
   }
 
   public reactTo(action: LevelAction): void {
@@ -49,38 +90,14 @@ export class Level {
     }
   }
 
-  public initListeners(): void {
-    this.cnv.addEventListener('keydown', event => {
-      event.preventDefault();
-      switch (event.code) {
-        case 'KeyA':
-        case 'ArrowLeft':
-          this.broadcast({ type: 'controls', deltaX: -1, deltaY: 0 });
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          this.broadcast({ type: 'controls', deltaX: 1, deltaY: 0 });
-          break;
-        case 'KeyW':
-        case 'ArrowUp':
-          this.broadcast({ type: 'controls', deltaX: 0, deltaY: -1 });
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          this.broadcast({ type: 'controls', deltaX: 0, deltaY: 1 });
-          break;
-      }
-    });
-  }
-
-  private broadcast(action: Action): void {
+  public broadcast(action: Action): void {
     this.needsUpdate = true;
-    for (const square of this.map) {
-      square.reactTo(action);
+    for (const tile of this.map) {
+      tile.reactTo(action);
     }
   }
 
-  public add(x: number, y: number, square: Tile): void {
+  private add(x: number, y: number, square: Tile): void {
     this.needsUpdate = true;
     this.map.add(x, y, square);
 
@@ -91,7 +108,7 @@ export class Level {
 
   public render(): void {
     this.ctx.fillStyle = 'black';
-    this.ctx.fillRect(0, 0, this.cnv.width, this.cnv.height);
+    this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
     this.ctx.fill();
 
     // order tiles by zIndex
@@ -118,7 +135,9 @@ export class Level {
   }
 
   public update(): void {
-    if (!this.won && this.needsUpdate) {
+    if (this.needsUpdate) {
+      this.notifyWinListeners();
+
       if (this.needsRulesUpdate) {
         this.updateRules();
       }
@@ -127,22 +146,30 @@ export class Level {
         this.won = true;
       }
 
+
       this.render();
       this.needsUpdate = false;
     }
   }
 
-  public start(): void {
-    const callback = () => {
-      this.update();
-      requestAnimationFrame(callback);
-    };
+  private notifyWinListeners(): void {
+    if (this.won) {
+      this.onWinHandlers.forEach(listener => {
+        listener();
+      });
+    }
+  }
 
-    requestAnimationFrame(callback);
-  };
+  public onWin(handler: () => void): void {
+    this.onWinHandlers.push(handler);
+  }
 
   public get canvas(): Readonly<HTMLCanvasElement> {
     return this.cnv;
+  }
+
+  public get dimensions(): [number, number] {
+    return this.dims;
   }
 
   public get tileMap(): TileMap {

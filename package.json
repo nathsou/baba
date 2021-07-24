@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "cp src/index.html dist && esbuild src/Main.ts --outfile=dist/baba.js --bundle",
+    "build": "mkdir dist && cp src/index.html dist && esbuild src/Main.ts --outfile=dist/baba.js --bundle",
     "watch": "esbuild src/Main.ts --outfile=dist/baba.js --bundle --watch"
   },
   "devDependencies": {

@@ -1,11 +1,10 @@
-import { game } from "./game";
+import { Game } from "./Game";
 
-const { level } = game;
+const game = new Game(18, 16);
 
 ///@ts-ignore
-window['level'] = level;
+window['game'] = game;
 
-document.body.appendChild(level.canvas);
+document.body.appendChild(game.canvas);
 
-level.reactTo({ type: 'update_rules' });
-level.start();
+game.start();
