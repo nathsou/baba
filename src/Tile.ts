@@ -12,6 +12,10 @@ export const tileProps: { [N in Noun]: { color: string, zIndex: number } } = {
   rock: { color: '#994636', zIndex: 10 },
 };
 
+export const zIndex = (kind: Noun): number => {
+  return tileProps[kind].zIndex;
+};
+
 type ControlsAction = { type: 'controls', deltaX: number, deltaY: number };
 type UpdatedRulesAction = { type: 'updated_rules' };
 type WinAction = { type: 'win' };

@@ -111,10 +111,9 @@ export class Level {
     this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
     this.ctx.fill();
 
-    // order tiles by zIndex
-    const tiles = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
-
-    tiles.forEach(tile => tile.render(this.ctx));
+    for (const tile of this.map) {
+      tile.render(this.ctx);
+    }
 
     if (Level.DEBUG) {
       this.map.debug(this.ctx);

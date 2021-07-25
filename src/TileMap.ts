@@ -1,27 +1,23 @@
 import { Rules, Word } from "./Rules";
-import { Tile } from "./Tile";
-
-const swapRemove = (values: any[], index: number): void => {
-  [values[index], values[values.length - 1]] = [values[values.length - 1], values[index]];
-  values.pop();
-};
+import { Tile, zIndex } from "./Tile";
+import { insertSorted, swapRemove } from "./Utils";
 
 export class TileMap {
-  private squares: Tile[][][];
-  private linear: Tile[];
+  private tiles: Tile[][][];
+  private linear: Tile[]; // keep sorted by zIndex
   private positions: Map<Tile, { x: number, y: number }>;
   private dims: [number, number];
 
   constructor(width: number, height: number) {
     this.dims = [width, height];
-    this.squares = [];
+    this.tiles = [];
     this.linear = [];
     this.positions = new Map();
 
     for (let i = 0; i < width; i++) {
-      this.squares.push([]);
+      this.tiles.push([]);
       for (let j = 0; j < height; j++) {
-        this.squares[i].push([]);
+        this.tiles[i].push([]);
       }
     }
   }
@@ -31,17 +27,17 @@ export class TileMap {
       return [];
     }
 
-    return this.squares[x][y] ?? [];
+    return this.tiles[x][y] ?? [];
   }
 
-  public add(x: number, y: number, square: Tile, addToLinear = true): void {
-    this.at(x, y)?.push(square);
+  public add(x: number, y: number, tile: Tile, addToLinear = true): void {
+    this.at(x, y)?.push(tile);
 
     if (addToLinear) {
-      this.linear.push(square);
+      insertSorted(tile, this.linear, (a, b) => zIndex(a.kind) < zIndex(b.kind));
     }
 
-    this.positions.set(square, { x, y });
+    this.positions.set(tile, { x, y });
   }
 
   public position(square: Tile): { x: number, y: number } {
@@ -53,23 +49,23 @@ export class TileMap {
     return pos;
   }
 
-  public remove(square: Tile, removeFromLinear = true): void {
-    const pos = this.position(square);
+  public remove(tile: Tile, removeFromLinear = true): void {
+    const pos = this.position(tile);
     if (pos) {
-      const squares = this.at(pos.x, pos.y);
-      const idx = squares?.findIndex(sq => sq === square);
+      const tiles = this.at(pos.x, pos.y);
+      const idx = tiles?.findIndex(t => t === tile);
 
       if (idx !== undefined && idx >= 0) {
-        swapRemove(squares, idx);
+        swapRemove(tiles, idx);
       }
 
       if (removeFromLinear) {
-        const idx = this.linear.findIndex(sq => sq === square);
+        const idx = this.linear.findIndex(t => t === tile);
         if (idx >= 0) {
-          swapRemove(this.linear, idx);
+          this.linear.splice(idx, 1);
         }
 
-        this.positions.delete(square);
+        this.positions.delete(tile);
       }
     }
   }
