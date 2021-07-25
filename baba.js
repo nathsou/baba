@@ -1,4 +1,24 @@
 (() => {
+  var __defProp = Object.defineProperty;
+  var __defProps = Object.defineProperties;
+  var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+  var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __propIsEnum = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues = (a, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    if (__getOwnPropSymbols)
+      for (var prop of __getOwnPropSymbols(b)) {
+        if (__propIsEnum.call(b, prop))
+          __defNormalProp(a, prop, b[prop]);
+      }
+    return a;
+  };
+  var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+
   // src/Rules.ts
   var priorities = {
     win: 100,
@@ -165,7 +185,6 @@
       const { x, y } = this.position;
       ctx.fillStyle = this.color;
       ctx.fillRect(x * _Tile.SIZE, y * _Tile.SIZE, _Tile.SIZE, _Tile.SIZE);
-      ctx.fill();
     }
     reactTo(action) {
       if (behaviors.always(action, this) === "break") {
@@ -221,12 +240,7 @@
       this.tiles = [];
       this.linear = [];
       this.positions = new Map();
-      for (let i = 0; i < width; i++) {
-        this.tiles.push([]);
-        for (let j = 0; j < height; j++) {
-          this.tiles[i].push([]);
-        }
-      }
+      this.clear();
     }
     at(x, y) {
       var _a;
@@ -243,10 +257,10 @@
       }
       this.positions.set(tile, { x, y });
     }
-    position(square) {
-      const pos = this.positions.get(square);
+    position(tile) {
+      const pos = this.positions.get(tile);
       if (pos === void 0) {
-        throw new Error("Could not get position of provided square");
+        throw new Error("Could not get position of provided tile");
       }
       return pos;
     }
@@ -304,7 +318,17 @@
           ctx.fillText(`${count}`, i * Tile.SIZE + 2, j * Tile.SIZE + 15);
         }
       }
-      ctx.fill();
+    }
+    clear() {
+      this.positions.clear();
+      this.linear = [];
+      this.tiles = [];
+      for (let i = 0; i < this.dims[0]; i++) {
+        this.tiles.push([]);
+        for (let j = 0; j < this.dims[1]; j++) {
+          this.tiles[i].push([]);
+        }
+      }
     }
   };
 
@@ -402,17 +426,23 @@
       this.ctx.scale(dpr, dpr);
       this.map = new TileMap(dimX, dimY);
     }
-    static from({ dims, text, objects }) {
-      const lvl = new _Level(dims[0], dims[1]);
-      const dispatch = lvl.reactTo.bind(lvl);
+    static from(level) {
+      const lvl = new _Level(level.dims[0], level.dims[1]);
+      lvl.reset(level);
+      return lvl;
+    }
+    reset({ text, objects }) {
+      this.map.clear();
+      this.text = [];
+      const dispatch = this.reactTo.bind(this);
+      this.won = false;
       for (const { x, y, word } of text) {
-        lvl.add(x, y, new Text(word, lvl.map, dispatch));
+        this.add(x, y, new Text(word, this.map, dispatch));
       }
       for (const { x, y, kind } of objects) {
-        lvl.add(x, y, new Tile(kind, lvl.map, dispatch));
+        this.add(x, y, new Tile(kind, this.map, dispatch));
       }
-      lvl.reactTo({ type: "update_rules" });
-      return lvl;
+      this.reactTo({ type: "update_rules" });
     }
     reactTo(action) {
       switch (action.type) {
@@ -431,17 +461,16 @@
         tile.reactTo(action);
       }
     }
-    add(x, y, square) {
+    add(x, y, tile) {
       this.needsUpdate = true;
-      this.map.add(x, y, square);
-      if (square instanceof Text) {
-        this.text.push(square);
+      this.map.add(x, y, tile);
+      if (tile instanceof Text) {
+        this.text.push(tile);
       }
     }
     render() {
       this.ctx.fillStyle = "black";
       this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
-      this.ctx.fill();
       for (const tile of this.map) {
         tile.render(this.ctx);
       }
@@ -470,7 +499,9 @@
         }
         this.render();
         this.needsUpdate = false;
+        return true;
       }
+      return false;
     }
     notifyWinListeners() {
       if (this.won) {
@@ -494,6 +525,255 @@
   };
   var Level = _Level;
   Level.DEBUG = false;
+
+  // src/UI/Component.ts
+  var _Component = class {
+    constructor(props) {
+      this.width = 0;
+      this.height = 0;
+      this.debugColor = "red";
+      this.debugLineWidth = 2;
+      this.lastX = 0;
+      this.lastY = 0;
+      this.state = "none";
+      this.needsUpdate = true;
+      this.props = props;
+    }
+    render(x, y, ctx) {
+      this.lastX = x;
+      this.lastY = y;
+      if (_Component.DEBUG) {
+        this.debug(x, y, ctx);
+      }
+      this.needsUpdate = false;
+    }
+    debug(x, y, ctx) {
+      ctx.strokeStyle = this.debugColor;
+      ctx.lineWidth = this.debugLineWidth;
+      ctx.strokeRect(x, y, this.width, this.height);
+    }
+    setState(state) {
+      if (this.state !== state) {
+        this.state = state;
+        this.needsUpdate = true;
+      }
+    }
+    onMouseEvent(x, y, newState, defaultState, handler) {
+      if (x >= this.lastX && x <= this.lastX + this.width && (y >= this.lastY && y <= this.lastY + this.height)) {
+        this.setState(newState);
+        if (this.props.children) {
+          this.props.children.forEach((child) => child[handler](x, y));
+        }
+      } else {
+        this.setState(defaultState);
+      }
+    }
+    onMouseMove(x, y) {
+      this.onMouseEvent(x, y, "hover", "none", "onMouseMove");
+    }
+    onMouseDown(x, y) {
+      this.onMouseEvent(x, y, "mouseDown", this.state, "onMouseDown");
+    }
+    onMouseUp(x, y) {
+      this.onMouseEvent(x, y, "hover", this.state, "onMouseUp");
+    }
+    needsRerender() {
+      var _a, _b;
+      return this.needsUpdate || ((_b = (_a = this.props.children) == null ? void 0 : _a.some((c) => c.needsRerender())) != null ? _b : false);
+    }
+  };
+  var Component = _Component;
+  Component.DEBUG = false;
+
+  // src/UI/Button.ts
+  var Button = class extends Component {
+    constructor({
+      text,
+      width,
+      height,
+      textColor = "white",
+      backgroundColor = "#7b2cbf",
+      font = "20px Arial",
+      borderColor = "white",
+      borderWidth = 0,
+      onClick
+    }) {
+      super({ text, width, height, textColor, backgroundColor, font, borderColor, borderWidth, onClick });
+      this.width = width;
+      this.height = height;
+      this.debugColor = "blue";
+      this.onHoverProps = __spreadProps(__spreadValues({}, this.props), {
+        borderWidth: 2,
+        borderColor
+      });
+    }
+    setState(state) {
+      if (state !== this.state) {
+        this.state = state;
+        this.needsUpdate = true;
+        if (state === "mouseDown") {
+          this.props.onClick();
+        }
+      }
+    }
+    render(x, y, ctx) {
+      const {
+        text,
+        width,
+        height,
+        textColor,
+        backgroundColor,
+        font,
+        borderColor,
+        borderWidth
+      } = this.state === "hover" ? this.onHoverProps : this.props;
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(x, y, width, height);
+      ctx.font = font;
+      ctx.fillStyle = textColor;
+      const metrics = ctx.measureText(text);
+      const textWidth = metrics.width;
+      const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+      ctx.fillText(text, x + (width - textWidth) / 2, y + (height + textHeight) / 2, width);
+      if (borderWidth > 0) {
+        ctx.lineWidth = borderWidth;
+        ctx.strokeStyle = borderColor;
+        ctx.strokeRect(x, y, width, height);
+      }
+      super.render(x, y, ctx);
+    }
+  };
+
+  // src/UI/Stack.ts
+  var Stack = class extends Component {
+    constructor({
+      direction = "vertical",
+      children = [],
+      spacing = 0,
+      alignment = "top",
+      justify = "start",
+      width = "auto",
+      height = 0
+    }) {
+      super({ direction, children, spacing, alignment, justify, width, height });
+      this.maxItemHeight = 0;
+      this.maxItemWidth = 0;
+      this.maxContentWidth = 0;
+      this.maxContentHeight = 0;
+      this.maxItemHeight = children.reduce((max, child) => Math.max(max, child.height), 0);
+      this.maxItemWidth = children.reduce((max, child) => Math.max(max, child.width), 0);
+      if (width !== "auto") {
+        this.width = width;
+      }
+      if (height !== "auto") {
+        this.height = height;
+      }
+      this.updateMaxContentWidth();
+    }
+    alignmentOffset(width, height) {
+      const isVertical = this.props.direction === "vertical";
+      switch (this.props.alignment) {
+        case "top":
+          return [0, 0];
+        case "bottom":
+          return [isVertical ? this.maxItemWidth - width : 0, isVertical ? this.maxItemHeight - height : 0];
+        case "center": {
+          return [isVertical ? (this.maxItemWidth - width) / 2 : 0, isVertical ? 0 : (this.maxItemHeight - height) / 2];
+        }
+      }
+    }
+    justifyOffset() {
+      const isVertical = this.props.direction === "vertical";
+      switch (this.props.justify) {
+        case "start":
+          return [0, 0];
+        case "end":
+          return [0, 0];
+        case "center":
+          return [isVertical ? 0 : (this.width - this.maxContentWidth) / 2, isVertical ? (this.height - this.maxContentHeight) / 2 : 0];
+        case "auto":
+          return [(this.width - this.maxContentWidth) / 2, (this.height - this.maxContentHeight) / 2];
+      }
+    }
+    *positions() {
+      const { children = [], spacing } = this.props;
+      const [xJustifyOffset, yJustifyOffset] = this.justifyOffset();
+      let xPos = spacing;
+      let yPos = spacing;
+      let wrapCount = 0;
+      for (const child of children) {
+        if (this.props.direction === "horizontal" && xPos + child.width + spacing > this.width) {
+          xPos = spacing;
+          yPos += this.maxItemHeight + spacing;
+          wrapCount++;
+        } else if (yPos + child.height + spacing > this.height) {
+          xPos += this.maxItemWidth + spacing;
+          yPos = spacing;
+          wrapCount++;
+        }
+        const [xOffset, yOffset] = this.alignmentOffset(child.width, child.height);
+        yield [xPos + xOffset + xJustifyOffset, yPos + yOffset + yJustifyOffset, child, wrapCount];
+        if (this.props.direction === "horizontal") {
+          xPos += child.width + spacing;
+        } else {
+          yPos += child.height + spacing;
+        }
+      }
+    }
+    updateMaxContentWidth() {
+      const { spacing } = this.props;
+      let maxWidth = 0;
+      let maxHeight = 0;
+      let lastWrapCount = 0;
+      let contentStartX = -1;
+      let contentEndX = 0;
+      let contentStartY = -1;
+      let contentEndY = 0;
+      for (const [x, y, child, wrapCount] of this.positions()) {
+        if (contentStartX < 0) {
+          contentStartX = x;
+          contentStartY = y;
+          lastWrapCount = wrapCount;
+        }
+        if (wrapCount === lastWrapCount) {
+          contentEndX = x + child.width + spacing;
+          contentEndY = y + child.height + spacing;
+        } else {
+          lastWrapCount = wrapCount;
+          maxWidth = Math.max(maxWidth, contentEndX - contentStartX);
+          maxHeight = Math.max(maxHeight, contentEndY - contentStartY);
+          contentStartX = x;
+          contentStartY = y;
+          contentEndX = x + child.width + spacing;
+          contentEndY = y + child.height + spacing;
+        }
+      }
+      this.maxContentWidth = Math.max(maxWidth, contentEndX - contentStartX);
+      this.maxContentHeight = Math.max(maxHeight, contentEndY - contentStartY);
+      if (this.props.width === "auto") {
+        this.width = this.maxContentWidth;
+      }
+      if (this.props.height === "auto") {
+        this.height = this.maxContentHeight;
+      }
+    }
+    render(x, y, ctx) {
+      for (const [childX, childY, child] of this.positions()) {
+        child.render(x + childX, y + childY, ctx);
+      }
+      super.render(x, y, ctx);
+    }
+    setState(state) {
+      this.state = state;
+    }
+    addChild(child) {
+      var _a;
+      (_a = this.props.children) == null ? void 0 : _a.push(child);
+      this.maxItemHeight = Math.max(this.maxItemHeight, child.height);
+      this.maxItemWidth = Math.max(this.maxItemHeight, child.width);
+      this.updateMaxContentWidth();
+    }
+  };
 
   // src/Game.ts
   var lvl0 = {
@@ -583,7 +863,9 @@
     constructor(width, height) {
       this.currentLevelIndex = 0;
       this.currentLevel = null;
-      this.zoomedIn = false;
+      this.stretch = false;
+      this.state = "playing";
+      this.needsUpdate = true;
       this.width = width;
       this.height = height;
       const cnv = document.createElement("canvas");
@@ -602,6 +884,27 @@
       this.ctx.scale(dpr, dpr);
       this.initListeners();
       this.setLevel(levels[0]);
+      this.ui = new Stack({
+        children: [
+          new Button({
+            text: "Start over",
+            width: 6 * Tile.SIZE,
+            height: 1 * Tile.SIZE,
+            onClick: () => {
+              var _a;
+              (_a = this.currentLevel) == null ? void 0 : _a.reset(levels[this.currentLevelIndex]);
+              this.state = "playing";
+              this.needsUpdate = true;
+            }
+          })
+        ],
+        direction: "vertical",
+        spacing: 30,
+        alignment: "center",
+        justify: "auto",
+        width: width * Tile.SIZE,
+        height: height * Tile.SIZE
+      });
     }
     setLevel(lvl) {
       const level = Level.from(lvl);
@@ -633,25 +936,47 @@
           case "ArrowDown":
             (_d = this.currentLevel) == null ? void 0 : _d.broadcast({ type: "controls", deltaX: 0, deltaY: 1 });
             break;
+          case "Escape":
+            this.state = this.state === "paused" ? "playing" : "paused";
+            this.needsUpdate = true;
+            break;
         }
+      });
+      this.cnv.addEventListener("mousemove", (event) => {
+        const boundingRect = this.cnv.getBoundingClientRect();
+        this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+      });
+      this.cnv.addEventListener("mousedown", (event) => {
+        const boundingRect = this.cnv.getBoundingClientRect();
+        this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+      });
+      this.cnv.addEventListener("mouseup", (event) => {
+        const boundingRect = this.cnv.getBoundingClientRect();
+        this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
       });
     }
     render() {
       this.ctx.fillStyle = "#212529";
       this.ctx.fillRect(0, 0, this.width * Tile.SIZE, this.height * Tile.SIZE);
-      this.ctx.fill();
       if (this.currentLevel) {
         const [lvlX, lvlY] = this.currentLevel.dimensions;
-        const zoom = this.zoomedIn ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
+        const zoom = this.stretch ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
         const offsetX = (this.width - lvlX * zoom) * Tile.SIZE / 2;
         const offsetY = (this.height - lvlY * zoom) * Tile.SIZE / 2;
         this.ctx.drawImage(this.currentLevel.canvas, offsetX, offsetY, lvlX * Tile.SIZE * zoom, lvlY * Tile.SIZE * zoom);
+        this.currentLevel.render();
+      }
+      if (this.state === "paused") {
+        this.ui.render(0, 0, this.ctx);
       }
     }
     update() {
       var _a;
-      this.render();
-      (_a = this.currentLevel) == null ? void 0 : _a.update();
+      const needsUpdate = this.needsUpdate || ((_a = this.currentLevel) == null ? void 0 : _a.update()) || this.ui.needsRerender();
+      if (needsUpdate) {
+        this.needsUpdate = false;
+        this.render();
+      }
     }
     start() {
       const callback = () => {
