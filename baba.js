@@ -137,6 +137,9 @@
     text: { color: "#faf3dd", zIndex: 10 },
     rock: { color: "#994636", zIndex: 10 }
   };
+  var zIndex = (kind) => {
+    return tileProps[kind].zIndex;
+  };
   var _Tile = class {
     constructor(kind, map, dispatch) {
       this.noun = "baba";
@@ -189,21 +192,39 @@
   var Tile = _Tile;
   Tile.SIZE = 48;
 
-  // src/TileMap.ts
+  // src/Utils.ts
   var swapRemove = (values, index) => {
     [values[index], values[values.length - 1]] = [values[values.length - 1], values[index]];
     values.pop();
   };
+  var findSortedIndex = (value, values, lss) => {
+    let low = 0, high = values.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (lss(values[mid], value)) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  };
+  var insertSorted = (value, values, lss) => {
+    const index = findSortedIndex(value, values, lss);
+    values.splice(index, 0, value);
+  };
+
+  // src/TileMap.ts
   var TileMap = class {
     constructor(width, height) {
       this.dims = [width, height];
-      this.squares = [];
+      this.tiles = [];
       this.linear = [];
       this.positions = new Map();
       for (let i = 0; i < width; i++) {
-        this.squares.push([]);
+        this.tiles.push([]);
         for (let j = 0; j < height; j++) {
-          this.squares[i].push([]);
+          this.tiles[i].push([]);
         }
       }
     }
@@ -212,15 +233,15 @@
       if (!this.isValidPosition(x, y)) {
         return [];
       }
-      return (_a = this.squares[x][y]) != null ? _a : [];
+      return (_a = this.tiles[x][y]) != null ? _a : [];
     }
-    add(x, y, square, addToLinear = true) {
+    add(x, y, tile, addToLinear = true) {
       var _a;
-      (_a = this.at(x, y)) == null ? void 0 : _a.push(square);
+      (_a = this.at(x, y)) == null ? void 0 : _a.push(tile);
       if (addToLinear) {
-        this.linear.push(square);
+        insertSorted(tile, this.linear, (a, b) => zIndex(a.kind) < zIndex(b.kind));
       }
-      this.positions.set(square, { x, y });
+      this.positions.set(tile, { x, y });
     }
     position(square) {
       const pos = this.positions.get(square);
@@ -229,20 +250,20 @@
       }
       return pos;
     }
-    remove(square, removeFromLinear = true) {
-      const pos = this.position(square);
+    remove(tile, removeFromLinear = true) {
+      const pos = this.position(tile);
       if (pos) {
-        const squares = this.at(pos.x, pos.y);
-        const idx = squares == null ? void 0 : squares.findIndex((sq) => sq === square);
+        const tiles = this.at(pos.x, pos.y);
+        const idx = tiles == null ? void 0 : tiles.findIndex((t) => t === tile);
         if (idx !== void 0 && idx >= 0) {
-          swapRemove(squares, idx);
+          swapRemove(tiles, idx);
         }
         if (removeFromLinear) {
-          const idx2 = this.linear.findIndex((sq) => sq === square);
+          const idx2 = this.linear.findIndex((t) => t === tile);
           if (idx2 >= 0) {
-            swapRemove(this.linear, idx2);
+            this.linear.splice(idx2, 1);
           }
-          this.positions.delete(square);
+          this.positions.delete(tile);
         }
       }
     }
@@ -421,8 +442,9 @@
       this.ctx.fillStyle = "black";
       this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
       this.ctx.fill();
-      const tiles = [...this.map].sort((a, b) => tileProps[a.kind].zIndex - tileProps[b.kind].zIndex);
-      tiles.forEach((tile) => tile.render(this.ctx));
+      for (const tile of this.map) {
+        tile.render(this.ctx);
+      }
       if (_Level.DEBUG) {
         this.map.debug(this.ctx);
       }
