@@ -1,5 +1,5 @@
 import { Noun, Rules, Word } from "./Rules";
-import { Action, Tile, tileProps } from "./Tile";
+import { Action, Tile } from "./Tile";
 import { TileMap } from "./TileMap";
 import { Text } from "./Text";
 
@@ -36,21 +36,28 @@ export class Level {
   private dims: [number, number];
   private onWinHandlers: (() => void)[] = [];
 
-  public static from({ dims, text, objects }: LevelData): Level {
-    const lvl = new Level(dims[0], dims[1]);
-    const dispatch = lvl.reactTo.bind(lvl);
+  public static from(level: LevelData): Level {
+    const lvl = new Level(level.dims[0], level.dims[1]);
+    lvl.reset(level);
+    return lvl
+  }
+
+  public reset({ text, objects }: LevelData): void {
+    this.map.clear();
+    this.text = [];
+    const dispatch = this.reactTo.bind(this);
+
+    this.won = false;
 
     for (const { x, y, word } of text) {
-      lvl.add(x, y, new Text(word, lvl.map, dispatch));
+      this.add(x, y, new Text(word, this.map, dispatch));
     }
 
     for (const { x, y, kind } of objects) {
-      lvl.add(x, y, new Tile(kind, lvl.map, dispatch));
+      this.add(x, y, new Tile(kind, this.map, dispatch));
     }
 
-    lvl.reactTo({ type: 'update_rules' });
-
-    return lvl;
+    this.reactTo({ type: 'update_rules' });
   }
 
   private constructor(dimX: number, dimY: number) {
@@ -97,19 +104,18 @@ export class Level {
     }
   }
 
-  private add(x: number, y: number, square: Tile): void {
+  private add(x: number, y: number, tile: Tile): void {
     this.needsUpdate = true;
-    this.map.add(x, y, square);
+    this.map.add(x, y, tile);
 
-    if (square instanceof Text) {
-      this.text.push(square);
+    if (tile instanceof Text) {
+      this.text.push(tile);
     }
   }
 
   public render(): void {
     this.ctx.fillStyle = 'black';
     this.ctx.fillRect(0, 0, this.dims[0] * Tile.SIZE, this.dims[1] * Tile.SIZE);
-    this.ctx.fill();
 
     for (const tile of this.map) {
       tile.render(this.ctx);
@@ -133,7 +139,7 @@ export class Level {
     this.needsRulesUpdate = false;
   }
 
-  public update(): void {
+  public update(): boolean {
     if (this.needsUpdate) {
       this.notifyWinListeners();
 
@@ -148,7 +154,10 @@ export class Level {
 
       this.render();
       this.needsUpdate = false;
+      return true;
     }
+
+    return false;
   }
 
   private notifyWinListeners(): void {

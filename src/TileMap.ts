@@ -14,12 +14,7 @@ export class TileMap {
     this.linear = [];
     this.positions = new Map();
 
-    for (let i = 0; i < width; i++) {
-      this.tiles.push([]);
-      for (let j = 0; j < height; j++) {
-        this.tiles[i].push([]);
-      }
-    }
+    this.clear();
   }
 
   public at(x: number, y: number): Tile[] {
@@ -40,10 +35,10 @@ export class TileMap {
     this.positions.set(tile, { x, y });
   }
 
-  public position(square: Tile): { x: number, y: number } {
-    const pos = this.positions.get(square);
+  public position(tile: Tile): { x: number, y: number } {
+    const pos = this.positions.get(tile);
     if (pos === undefined) {
-      throw new Error('Could not get position of provided square');
+      throw new Error('Could not get position of provided tile');
     }
 
     return pos;
@@ -111,7 +106,18 @@ export class TileMap {
         ctx.fillText(`${count}`, i * Tile.SIZE + 2, j * Tile.SIZE + 15);
       }
     }
+  }
 
-    ctx.fill();
+  public clear(): void {
+    this.positions.clear();
+    this.linear = [];
+    this.tiles = [];
+
+    for (let i = 0; i < this.dims[0]; i++) {
+      this.tiles.push([]);
+      for (let j = 0; j < this.dims[1]; j++) {
+        this.tiles[i].push([]);
+      }
+    }
   }
 }

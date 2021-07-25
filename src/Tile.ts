@@ -60,7 +60,6 @@ export class Tile {
     const { x, y } = this.position;
     ctx.fillStyle = this.color;
     ctx.fillRect(x * Tile.SIZE, y * Tile.SIZE, Tile.SIZE, Tile.SIZE);
-    ctx.fill();
   }
 
   public reactTo(action: Action): void {

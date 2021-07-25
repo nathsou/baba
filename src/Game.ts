@@ -1,5 +1,7 @@
 import { Level, LevelData } from "./Level";
 import { Tile } from "./Tile";
+import { Button } from "./UI/Button";
+import { Stack } from "./UI/Stack";
 
 const lvl0: LevelData = {
   name: 'Level 0',
@@ -94,7 +96,10 @@ export class Game {
   private currentLevel: Level | null = null;
   private width: number;
   private height: number;
-  private zoomedIn = false;
+  private stretch = false;
+  private ui: Stack;
+  private state: 'paused' | 'playing' = 'playing';
+  private needsUpdate = true;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -120,6 +125,26 @@ export class Game {
 
     this.initListeners();
     this.setLevel(levels[0]);
+    this.ui = new Stack({
+      children: [
+        new Button({
+          text: 'Start over',
+          width: 6 * Tile.SIZE,
+          height: 1 * Tile.SIZE,
+          onClick: () => {
+            this.currentLevel?.reset(levels[this.currentLevelIndex]);
+            this.state = 'playing';
+            this.needsUpdate = true;
+          },
+        }),
+      ],
+      direction: 'vertical',
+      spacing: 30,
+      alignment: 'center',
+      justify: 'auto',
+      width: width * Tile.SIZE,
+      height: height * Tile.SIZE,
+    });
   }
 
   private setLevel(lvl: LevelData): void {
@@ -154,18 +179,36 @@ export class Game {
         case 'ArrowDown':
           this.currentLevel?.broadcast({ type: 'controls', deltaX: 0, deltaY: 1 });
           break;
+        case 'Escape':
+          this.state = this.state === 'paused' ? 'playing' : 'paused';
+          this.needsUpdate = true;
+          break;
       }
+    });
+
+    this.cnv.addEventListener('mousemove', event => {
+      const boundingRect = this.cnv.getBoundingClientRect();
+      this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+    });
+
+    this.cnv.addEventListener('mousedown', event => {
+      const boundingRect = this.cnv.getBoundingClientRect();
+      this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+    });
+
+    this.cnv.addEventListener('mouseup', event => {
+      const boundingRect = this.cnv.getBoundingClientRect();
+      this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
     });
   }
 
   private render() {
     this.ctx.fillStyle = '#212529';
     this.ctx.fillRect(0, 0, this.width * Tile.SIZE, this.height * Tile.SIZE);
-    this.ctx.fill();
 
     if (this.currentLevel) {
       const [lvlX, lvlY] = this.currentLevel.dimensions;
-      const zoom = this.zoomedIn ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
+      const zoom = this.stretch ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
       const offsetX = (this.width - lvlX * zoom) * Tile.SIZE / 2;
       const offsetY = (this.height - lvlY * zoom) * Tile.SIZE / 2;
 
@@ -176,12 +219,22 @@ export class Game {
         lvlX * Tile.SIZE * zoom,
         lvlY * Tile.SIZE * zoom
       );
+
+      this.currentLevel.render();
+    }
+
+    if (this.state === 'paused') {
+      this.ui.render(0, 0, this.ctx);
     }
   }
 
   private update() {
-    this.render();
-    this.currentLevel?.update();
+    const needsUpdate = this.needsUpdate || this.currentLevel?.update() || this.ui.needsRerender();
+
+    if (needsUpdate) {
+      this.needsUpdate = false;
+      this.render();
+    }
   }
 
   public start(): void {
