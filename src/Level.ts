@@ -39,7 +39,7 @@ export class Level {
   public static from(level: LevelData): Level {
     const lvl = new Level(level.dims[0], level.dims[1]);
     lvl.reset(level);
-    return lvl
+    return lvl;
   }
 
   public reset({ text, objects }: LevelData): void {

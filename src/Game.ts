@@ -186,20 +186,35 @@ export class Game {
       }
     });
 
-    this.cnv.addEventListener('mousemove', event => {
+    const mousePosition = (event: MouseEvent) => {
       const boundingRect = this.cnv.getBoundingClientRect();
-      this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+      return [event.clientX - boundingRect.left, event.clientY - boundingRect.top];
+    };
+
+    this.cnv.addEventListener('mousemove', event => {
+      if (this.isUIVisible()) {
+        const [x, y] = mousePosition(event);
+        this.ui.onMouseMove(x, y);
+      }
     });
 
     this.cnv.addEventListener('mousedown', event => {
-      const boundingRect = this.cnv.getBoundingClientRect();
-      this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+      if (this.isUIVisible()) {
+        const [x, y] = mousePosition(event);
+        this.ui.onMouseDown(x, y);
+      }
     });
 
     this.cnv.addEventListener('mouseup', event => {
-      const boundingRect = this.cnv.getBoundingClientRect();
-      this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+      if (this.isUIVisible()) {
+        const [x, y] = mousePosition(event);
+        this.ui.onMouseUp(x, y);
+      }
     });
+  }
+
+  private isUIVisible(): boolean {
+    return this.state === 'paused';
   }
 
   private render() {
