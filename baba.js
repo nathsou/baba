@@ -236,6 +236,8 @@
   // src/TileMap.ts
   var TileMap = class {
     constructor(width, height) {
+      this.history = [];
+      this.recordHistory = false;
       this.dims = [width, height];
       this.tiles = [];
       this.linear = [];
@@ -249,8 +251,14 @@
       }
       return (_a = this.tiles[x][y]) != null ? _a : [];
     }
-    add(x, y, tile, addToLinear = true) {
+    startRecordingHistory() {
+      this.recordHistory = true;
+    }
+    add(x, y, tile, addToLinear = true, addToHistory = true) {
       var _a;
+      if (addToHistory && this.recordHistory) {
+        this.history.push({ type: "add", tile, addToLinear });
+      }
       (_a = this.at(x, y)) == null ? void 0 : _a.push(tile);
       if (addToLinear) {
         insertSorted(tile, this.linear, (a, b) => zIndex(a.kind) < zIndex(b.kind));
@@ -264,9 +272,12 @@
       }
       return pos;
     }
-    remove(tile, removeFromLinear = true) {
+    remove(tile, removeFromLinear = true, addToHistory = true) {
       const pos = this.position(tile);
       if (pos) {
+        if (addToHistory && this.recordHistory) {
+          this.history.push({ type: "remove", tile, removeFromLinear });
+        }
         const tiles = this.at(pos.x, pos.y);
         const idx = tiles == null ? void 0 : tiles.findIndex((t) => t === tile);
         if (idx !== void 0 && idx >= 0) {
@@ -284,14 +295,17 @@
     isValidPosition(x, y) {
       return x >= 0 && x < this.dims[0] && y >= 0 && y < this.dims[1];
     }
-    move(square, deltaX, deltaY) {
+    move(tile, deltaX, deltaY, addToHistory = true) {
       var _a;
-      const pos = this.positions.get(square);
+      const pos = this.positions.get(tile);
       if (pos && this.isValidPosition(pos.x + deltaX, pos.y + deltaY)) {
-        this.remove(square, false);
+        if (addToHistory && this.recordHistory) {
+          this.history.push({ type: "move", tile, deltaX, deltaY });
+        }
+        this.remove(tile, false, false);
         pos.x += deltaX;
         pos.y += deltaY;
-        (_a = this.at(pos.x, pos.y)) == null ? void 0 : _a.push(square);
+        (_a = this.at(pos.x, pos.y)) == null ? void 0 : _a.push(tile);
       }
     }
     has(rhs, x, y) {
@@ -319,10 +333,27 @@
         }
       }
     }
+    undo() {
+      const action = this.history.pop();
+      if (action) {
+        switch (action.type) {
+          case "add":
+            this.remove(action.tile, action.addToLinear, false);
+            break;
+          case "remove":
+            this.add(action.tile.x, action.tile.y, action.tile, action.removeFromLinear, false);
+            break;
+          case "move":
+            this.move(action.tile, -action.deltaX, -action.deltaY, false);
+        }
+      }
+    }
     clear() {
       this.positions.clear();
       this.linear = [];
       this.tiles = [];
+      this.history = [];
+      this.recordHistory = false;
       for (let i = 0; i < this.dims[0]; i++) {
         this.tiles.push([]);
         for (let j = 0; j < this.dims[1]; j++) {
@@ -437,11 +468,14 @@
       const dispatch = this.reactTo.bind(this);
       this.won = false;
       for (const { x, y, word } of text) {
-        this.add(x, y, new Text(word, this.map, dispatch));
+        const txt = new Text(word, this.map, dispatch);
+        this.text.push(txt);
+        this.add(x, y, txt);
       }
       for (const { x, y, kind } of objects) {
         this.add(x, y, new Tile(kind, this.map, dispatch));
       }
+      this.map.startRecordingHistory();
       this.reactTo({ type: "update_rules" });
     }
     reactTo(action) {
@@ -464,9 +498,6 @@
     add(x, y, tile) {
       this.needsUpdate = true;
       this.map.add(x, y, tile);
-      if (tile instanceof Text) {
-        this.text.push(tile);
-      }
     }
     render() {
       this.ctx.fillStyle = "black";
@@ -488,6 +519,9 @@
       this.broadcast({ type: "updated_rules" });
       this.needsRulesUpdate = false;
     }
+    needsRerender() {
+      return this.needsUpdate;
+    }
     update() {
       if (this.needsUpdate) {
         this.notifyWinListeners();
@@ -497,11 +531,8 @@
         if (Rules.won()) {
           this.won = true;
         }
-        this.render();
         this.needsUpdate = false;
-        return true;
       }
-      return false;
     }
     notifyWinListeners() {
       if (this.won) {
@@ -512,6 +543,9 @@
     }
     onWin(handler) {
       this.onWinHandlers.push(handler);
+    }
+    undo() {
+      this.tileMap.undo();
     }
     get canvas() {
       return this.cnv;
@@ -554,9 +588,16 @@
     }
     setState(state) {
       if (this.state !== state) {
+        this.onStateChange(state, this.state);
         this.state = state;
         this.needsUpdate = true;
       }
+    }
+    addChild(child) {
+      var _a;
+      (_a = this.props.children) == null ? void 0 : _a.push(child);
+    }
+    onStateChange(newState, oldState) {
     }
     onMouseEvent(x, y, newState, defaultState, handler) {
       if (x >= this.lastX && x <= this.lastX + this.width && (y >= this.lastY && y <= this.lastY + this.height)) {
@@ -607,13 +648,9 @@
         borderColor
       });
     }
-    setState(state) {
-      if (state !== this.state) {
-        this.state = state;
-        this.needsUpdate = true;
-        if (state === "mouseDown") {
-          this.props.onClick();
-        }
+    onStateChange(newState) {
+      if (newState === "mouseDown") {
+        this.props.onClick();
       }
     }
     render(x, y, ctx) {
@@ -668,7 +705,7 @@
       if (height !== "auto") {
         this.height = height;
       }
-      this.updateMaxContentWidth();
+      this.updateMaxContentSize();
     }
     alignmentOffset(width, height) {
       const isVertical = this.props.direction === "vertical";
@@ -720,7 +757,7 @@
         }
       }
     }
-    updateMaxContentWidth() {
+    updateMaxContentSize() {
       const { spacing } = this.props;
       let maxWidth = 0;
       let maxHeight = 0;
@@ -763,15 +800,11 @@
       }
       super.render(x, y, ctx);
     }
-    setState(state) {
-      this.state = state;
-    }
     addChild(child) {
-      var _a;
-      (_a = this.props.children) == null ? void 0 : _a.push(child);
+      super.addChild(child);
       this.maxItemHeight = Math.max(this.maxItemHeight, child.height);
       this.maxItemWidth = Math.max(this.maxItemHeight, child.width);
-      this.updateMaxContentWidth();
+      this.updateMaxContentSize();
     }
   };
 
@@ -884,7 +917,10 @@
       this.ctx.scale(dpr, dpr);
       this.initListeners();
       this.setLevel(levels[0]);
-      this.ui = new Stack({
+      this.ui = this.initUI();
+    }
+    initUI() {
+      return new Stack({
         children: [
           new Button({
             text: "Start over",
@@ -902,8 +938,8 @@
         spacing: 30,
         alignment: "center",
         justify: "auto",
-        width: width * Tile.SIZE,
-        height: height * Tile.SIZE
+        width: this.width * Tile.SIZE,
+        height: this.height * Tile.SIZE
       });
     }
     setLevel(lvl) {
@@ -917,7 +953,7 @@
     }
     initListeners() {
       this.cnv.addEventListener("keydown", (event) => {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         event.preventDefault();
         switch (event.code) {
           case "KeyA":
@@ -940,20 +976,33 @@
             this.state = this.state === "paused" ? "playing" : "paused";
             this.needsUpdate = true;
             break;
+          case "Backspace":
+            this.needsUpdate = true;
+            (_e = this.currentLevel) == null ? void 0 : _e.undo();
+            break;
         }
       });
       this.cnv.addEventListener("mousemove", (event) => {
-        const boundingRect = this.cnv.getBoundingClientRect();
-        this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        if (this.isUIVisible()) {
+          const boundingRect = this.cnv.getBoundingClientRect();
+          this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        }
       });
       this.cnv.addEventListener("mousedown", (event) => {
-        const boundingRect = this.cnv.getBoundingClientRect();
-        this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        if (this.isUIVisible()) {
+          const boundingRect = this.cnv.getBoundingClientRect();
+          this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        }
       });
       this.cnv.addEventListener("mouseup", (event) => {
-        const boundingRect = this.cnv.getBoundingClientRect();
-        this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        if (this.isUIVisible()) {
+          const boundingRect = this.cnv.getBoundingClientRect();
+          this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+        }
       });
+    }
+    isUIVisible() {
+      return this.state === "paused";
     }
     render() {
       this.ctx.fillStyle = "#212529";
@@ -963,18 +1012,19 @@
         const zoom = this.stretch ? Math.min(this.width / lvlX, this.height / lvlY) : 1;
         const offsetX = (this.width - lvlX * zoom) * Tile.SIZE / 2;
         const offsetY = (this.height - lvlY * zoom) * Tile.SIZE / 2;
-        this.ctx.drawImage(this.currentLevel.canvas, offsetX, offsetY, lvlX * Tile.SIZE * zoom, lvlY * Tile.SIZE * zoom);
         this.currentLevel.render();
+        this.ctx.drawImage(this.currentLevel.canvas, offsetX, offsetY, lvlX * Tile.SIZE * zoom, lvlY * Tile.SIZE * zoom);
       }
-      if (this.state === "paused") {
+      if (this.isUIVisible()) {
         this.ui.render(0, 0, this.ctx);
       }
+      this.needsUpdate = false;
     }
     update() {
-      var _a;
-      const needsUpdate = this.needsUpdate || ((_a = this.currentLevel) == null ? void 0 : _a.update()) || this.ui.needsRerender();
+      var _a, _b;
+      const needsUpdate = this.needsUpdate || ((_a = this.currentLevel) == null ? void 0 : _a.needsRerender()) || this.isUIVisible() && this.ui.needsRerender();
       if (needsUpdate) {
-        this.needsUpdate = false;
+        (_b = this.currentLevel) == null ? void 0 : _b.update();
         this.render();
       }
     }
