@@ -982,22 +982,26 @@
             break;
         }
       });
+      const mousePosition = (event) => {
+        const boundingRect = this.cnv.getBoundingClientRect();
+        return [event.clientX - boundingRect.left, event.clientY - boundingRect.top];
+      };
       this.cnv.addEventListener("mousemove", (event) => {
         if (this.isUIVisible()) {
-          const boundingRect = this.cnv.getBoundingClientRect();
-          this.ui.onMouseMove(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+          const [x, y] = mousePosition(event);
+          this.ui.onMouseMove(x, y);
         }
       });
       this.cnv.addEventListener("mousedown", (event) => {
         if (this.isUIVisible()) {
-          const boundingRect = this.cnv.getBoundingClientRect();
-          this.ui.onMouseDown(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+          const [x, y] = mousePosition(event);
+          this.ui.onMouseDown(x, y);
         }
       });
       this.cnv.addEventListener("mouseup", (event) => {
         if (this.isUIVisible()) {
-          const boundingRect = this.cnv.getBoundingClientRect();
-          this.ui.onMouseUp(event.clientX - boundingRect.left, event.clientY - boundingRect.top);
+          const [x, y] = mousePosition(event);
+          this.ui.onMouseUp(x, y);
         }
       });
     }
