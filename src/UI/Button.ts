@@ -32,14 +32,9 @@ export class Button extends Component<Required<ButtonProps>> {
     };
   }
 
-  public setState(state: ComponentState): void {
-    if (state !== this.state) {
-      this.state = state;
-      this.needsUpdate = true;
-
-      if (state === 'mouseDown') {
-        this.props.onClick();
-      }
+  protected onStateChange(newState: ComponentState): void {
+    if (newState === 'mouseDown') {
+      this.props.onClick();
     }
   }
 

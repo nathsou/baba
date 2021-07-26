@@ -125,7 +125,11 @@ export class Game {
 
     this.initListeners();
     this.setLevel(levels[0]);
-    this.ui = new Stack({
+    this.ui = this.initUI();
+  }
+
+  private initUI(): Stack {
+    return new Stack({
       children: [
         new Button({
           text: 'Start over',
@@ -142,8 +146,8 @@ export class Game {
       spacing: 30,
       alignment: 'center',
       justify: 'auto',
-      width: width * Tile.SIZE,
-      height: height * Tile.SIZE,
+      width: this.width * Tile.SIZE,
+      height: this.height * Tile.SIZE,
     });
   }
 
@@ -182,6 +186,10 @@ export class Game {
         case 'Escape':
           this.state = this.state === 'paused' ? 'playing' : 'paused';
           this.needsUpdate = true;
+          break;
+        case 'Backspace':
+          this.needsUpdate = true;
+          this.currentLevel?.undo();
           break;
       }
     });
@@ -227,6 +235,8 @@ export class Game {
       const offsetX = (this.width - lvlX * zoom) * Tile.SIZE / 2;
       const offsetY = (this.height - lvlY * zoom) * Tile.SIZE / 2;
 
+      this.currentLevel.render();
+
       this.ctx.drawImage(
         this.currentLevel.canvas,
         offsetX,
@@ -234,20 +244,23 @@ export class Game {
         lvlX * Tile.SIZE * zoom,
         lvlY * Tile.SIZE * zoom
       );
-
-      this.currentLevel.render();
     }
 
-    if (this.state === 'paused') {
+    if (this.isUIVisible()) {
       this.ui.render(0, 0, this.ctx);
     }
+
+    this.needsUpdate = false;
   }
 
   private update() {
-    const needsUpdate = this.needsUpdate || this.currentLevel?.update() || this.ui.needsRerender();
+    const needsUpdate =
+      this.needsUpdate ||
+      this.currentLevel?.needsRerender() ||
+      (this.isUIVisible() && this.ui.needsRerender());
 
     if (needsUpdate) {
-      this.needsUpdate = false;
+      this.currentLevel?.update();
       this.render();
     }
   }

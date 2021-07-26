@@ -44,10 +44,17 @@ export abstract class Component<Props> implements MouseEvents {
 
   public setState(state: ComponentState): void {
     if (this.state !== state) {
+      this.onStateChange(state, this.state);
       this.state = state;
       this.needsUpdate = true;
     }
   }
+
+  public addChild(child: Component<any>): void {
+    this.props.children?.push(child);
+  }
+
+  protected onStateChange(newState: ComponentState, oldState: ComponentState): void { }
 
   private onMouseEvent(
     x: number, y: number, newState: ComponentState,
