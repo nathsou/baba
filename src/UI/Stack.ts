@@ -31,7 +31,7 @@ export class Stack extends Component<Required<StackProps>> {
       this.height = height;
     }
 
-    this.updateMaxContentWidth();
+    this.updateMaxContentSize();
   }
 
   private alignmentOffset(width: number, height: number): [number, number] {
@@ -93,7 +93,7 @@ export class Stack extends Component<Required<StackProps>> {
     }
   }
 
-  private updateMaxContentWidth(): void {
+  private updateMaxContentSize(): void {
     const { spacing } = this.props;
     let maxWidth = 0;
     let maxHeight = 0;
@@ -144,15 +144,10 @@ export class Stack extends Component<Required<StackProps>> {
     super.render(x, y, ctx);
   }
 
-  public setState(state: ComponentState): void {
-    // do not rerender
-    this.state = state;
-  }
-
   public addChild(child: Component<any>): void {
-    this.props.children?.push(child);
+    super.addChild(child);
     this.maxItemHeight = Math.max(this.maxItemHeight, child.height);
     this.maxItemWidth = Math.max(this.maxItemHeight, child.width);
-    this.updateMaxContentWidth();
+    this.updateMaxContentSize();
   }
 }

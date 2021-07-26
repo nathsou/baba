@@ -2,11 +2,34 @@ import { Rules, Word } from "./Rules";
 import { Tile, zIndex } from "./Tile";
 import { insertSorted, swapRemove } from "./Utils";
 
+type AddTileAction = {
+  type: 'add',
+  tile: Tile,
+  addToLinear: boolean,
+};
+
+type RemoveTileAction = {
+  type: 'remove',
+  tile: Tile,
+  removeFromLinear: boolean,
+};
+
+type MoveTileAction = {
+  type: 'move',
+  tile: Tile,
+  deltaX: number,
+  deltaY: number,
+};
+
+type TileMapAction = AddTileAction | RemoveTileAction | MoveTileAction;
+
 export class TileMap {
   private tiles: Tile[][][];
   private linear: Tile[]; // keep sorted by zIndex
   private positions: Map<Tile, { x: number, y: number }>;
   private dims: [number, number];
+  private history: TileMapAction[] = [];
+  private recordHistory = false;
 
   constructor(width: number, height: number) {
     this.dims = [width, height];
@@ -25,7 +48,15 @@ export class TileMap {
     return this.tiles[x][y] ?? [];
   }
 
-  public add(x: number, y: number, tile: Tile, addToLinear = true): void {
+  public startRecordingHistory(): void {
+    this.recordHistory = true;
+  }
+
+  public add(x: number, y: number, tile: Tile, addToLinear = true, addToHistory = true): void {
+    if (addToHistory && this.recordHistory) {
+      this.history.push({ type: 'add', tile, addToLinear });
+    }
+
     this.at(x, y)?.push(tile);
 
     if (addToLinear) {
@@ -44,9 +75,13 @@ export class TileMap {
     return pos;
   }
 
-  public remove(tile: Tile, removeFromLinear = true): void {
+  public remove(tile: Tile, removeFromLinear = true, addToHistory = true): void {
     const pos = this.position(tile);
     if (pos) {
+      if (addToHistory && this.recordHistory) {
+        this.history.push({ type: 'remove', tile, removeFromLinear });
+      }
+
       const tiles = this.at(pos.x, pos.y);
       const idx = tiles?.findIndex(t => t === tile);
 
@@ -69,15 +104,18 @@ export class TileMap {
     return x >= 0 && x < this.dims[0] && y >= 0 && y < this.dims[1];
   }
 
-  public move(square: Tile, deltaX: number, deltaY: number): void {
-    const pos = this.positions.get(square);
+  public move(tile: Tile, deltaX: number, deltaY: number, addToHistory = true): void {
+    const pos = this.positions.get(tile);
     if (pos && this.isValidPosition(pos.x + deltaX, pos.y + deltaY)) {
-      this.remove(square, false);
+      if (addToHistory && this.recordHistory) {
+        this.history.push({ type: 'move', tile, deltaX, deltaY });
+      }
+      this.remove(tile, false, false);
 
       pos.x += deltaX;
       pos.y += deltaY;
 
-      this.at(pos.x, pos.y)?.push(square);
+      this.at(pos.x, pos.y)?.push(tile);
     }
   }
 
@@ -108,10 +146,29 @@ export class TileMap {
     }
   }
 
+  public undo(): void {
+    const action = this.history.pop();
+
+    if (action) {
+      switch (action.type) {
+        case 'add':
+          this.remove(action.tile, action.addToLinear, false);
+          break;
+        case 'remove':
+          this.add(action.tile.x, action.tile.y, action.tile, action.removeFromLinear, false);
+          break;
+        case 'move':
+          this.move(action.tile, -action.deltaX, -action.deltaY, false);
+      }
+    }
+  }
+
   public clear(): void {
     this.positions.clear();
     this.linear = [];
     this.tiles = [];
+    this.history = [];
+    this.recordHistory = false;
 
     for (let i = 0; i < this.dims[0]; i++) {
       this.tiles.push([]);

@@ -50,12 +50,16 @@ export class Level {
     this.won = false;
 
     for (const { x, y, word } of text) {
-      this.add(x, y, new Text(word, this.map, dispatch));
+      const txt = new Text(word, this.map, dispatch);
+      this.text.push(txt);
+      this.add(x, y, txt);
     }
 
     for (const { x, y, kind } of objects) {
       this.add(x, y, new Tile(kind, this.map, dispatch));
     }
+
+    this.map.startRecordingHistory();
 
     this.reactTo({ type: 'update_rules' });
   }
@@ -107,10 +111,6 @@ export class Level {
   private add(x: number, y: number, tile: Tile): void {
     this.needsUpdate = true;
     this.map.add(x, y, tile);
-
-    if (tile instanceof Text) {
-      this.text.push(tile);
-    }
   }
 
   public render(): void {
@@ -139,7 +139,11 @@ export class Level {
     this.needsRulesUpdate = false;
   }
 
-  public update(): boolean {
+  public needsRerender(): boolean {
+    return this.needsUpdate;
+  }
+
+  public update(): void {
     if (this.needsUpdate) {
       this.notifyWinListeners();
 
@@ -151,13 +155,8 @@ export class Level {
         this.won = true;
       }
 
-
-      this.render();
       this.needsUpdate = false;
-      return true;
     }
-
-    return false;
   }
 
   private notifyWinListeners(): void {
@@ -170,6 +169,10 @@ export class Level {
 
   public onWin(handler: () => void): void {
     this.onWinHandlers.push(handler);
+  }
+
+  public undo(): void {
+    this.tileMap.undo();
   }
 
   public get canvas(): Readonly<HTMLCanvasElement> {
